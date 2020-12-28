@@ -1,0 +1,4 @@
+*.code-workspace
+fhirton.py
+log.txt
+*__pycache__*
