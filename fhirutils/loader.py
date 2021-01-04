@@ -4,23 +4,22 @@ import random
 import string
 import time
 
-class FhirUtils():
+class Loader():
     def __init__(self, fhirbase=None, logpath=None):
         self.logpath = logpath
         self.fhirbase = fhirbase
+        self.errorstatus = False
         if self.logpath is not None:
             with open(self.logpath, "w") as f:
                 pass
         
 
-    def getRecord(self, enc_no, req_resources, savepath, form="json"):
+    def getRecord(self, enc_no, req_resources, savepath, destinationfile, form="json"):
         enc_no = [enc_no]
         if not self.checkValidEncounter(enc_no):
             print("Encounter identifier validation failed, check server connection and encounter identifier. Aborting...")
             exit()
 
-        med_id_lst = []
-        
         pat_no = self.getPatientNumber(enc_no, form)
         res_dict = { 
                 "MedicationRequest" : ["?encounter=", None],
@@ -34,10 +33,11 @@ class FhirUtils():
         format_dict = {
                 "json" : "&_format=json",
                 "xml" : "&_format=xml"
-        }
+            }
 
 
         res_lst = []
+        med_id_lst = []
         
 
         for resource in req_resources:
@@ -69,13 +69,20 @@ class FhirUtils():
                                     pass
                     except KeyError:
                         msg = "Encounter ID " + enc_no[0] + " -> Requested resource (" + resource + "): No resource found"
+                        self.errorstatus = True
                         if self.logpath is not None:
                             self.writeLogmsg(msg)            
 
         bundle = self.createBundle(res_lst, form)
 
-        with open("tests/test.json", "w", encoding="utf-8") as f:
+        path_str = savepath + "/" + destinationfile
+
+        with open(path_str, "w", encoding="utf-8") as f:
             json.dump(bundle, f, ensure_ascii=False, indent=4)
+            print("-----------------------------------------------")
+            print("Bundle created and saved to " + path_str + ".")
+            if self.errorstatus:
+                print("Errors have occured. Please check the log, if enabled.")
 
     def createBundle(self, res_lst, form):
         identifier = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(40))
@@ -103,7 +110,6 @@ class FhirUtils():
     def getPatientNumber(self, enc_no, form="json"):
         search_url = self.fhirbase + "Patient?_has:Encounter:patient:_id=" + enc_no[0]
         print(search_url)
-        print(enc_no)
         req = requests.get(search_url)
         downloads = str(req.content, encoding='cp1252')
         if form == "json":
@@ -115,6 +121,7 @@ class FhirUtils():
             except KeyError:
                 msg = "Encounter ID " + enc_no[0] + " -> Requested resource (Patient): No resource found"
                 print(msg)
+                self.errorstatus = True
                 self.writeLogmsg(msg)
 
 
@@ -133,6 +140,7 @@ class FhirUtils():
                         res_lst.append(item)
                 except KeyError:
                     msg = "Medication ID " + med + " -> Requested resource (Medication): No resource found"
+                    self.errorstatus = True
                     if self.logpath is not None:
                         self.writeLogmsg(msg)
 
@@ -146,6 +154,7 @@ class FhirUtils():
             return True
         else:
             errormsg = "Download Error: " + search_url
+            self.errorstatus = True
             if verbose > 0:
                 print(errormsg)
             self.writeLogmsg(errormsg)
@@ -156,7 +165,7 @@ class FhirUtils():
         req = requests.get(search_url)
         errormsg = "Encounter identifier validation failed."
         if not self.printRequestsMessage(req, search_url, verbose=0):
-            self.writeLogmsg(errrormsg)
+            self.writeLogmsg(errormsg)
             return False
         self.printRequestsMessage(req, search_url)
         downloads = str(req.content, encoding='cp1252')
@@ -168,23 +177,13 @@ class FhirUtils():
             return False
 
 
-
-        
-
-
-
-
-
-
-
-
-
 if __name__ == "__main__":
     logpath = r"log.txt"
-    #fhirbase = r"https://mii-agiop-3p.life.uni-leipzig.de/fhir/"
-    fhirbase = r"http://127.0.0.1:8080/"
+    fhirbase = r"https://mii-agiop-3p.life.uni-leipzig.de/fhir/"
+    #fhirbase = r"http://127.0.0.1:8080/"
     req_resources = [ "Encounter", "Patient", "Observation", "MedicationAdministration", "MedicationStatement", "Medication"]
     savepath = r"tests"
+    destinationfile = r"test1.json"
     enc_no = "1"
-    utils = FhirUtils(fhirbase=fhirbase, logpath=logpath)
-    utils.getRecord(enc_no, req_resources, savepath)
+    loader = Loader(fhirbase=fhirbase, logpath=logpath)
+    loader.getRecord(enc_no, req_resources, savepath, destinationfile)
