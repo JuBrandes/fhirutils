@@ -3,38 +3,41 @@ import json
 import random
 import string
 import time
+import csv
 
 class Loader():
-    def __init__(self, fhirbase=None, logpath=None):
+    def __init__(self, fhirbase=None, logpath=None, verbose = 1):
         self.logpath = logpath
         self.fhirbase = fhirbase
         self.errorstatus = False
+        self.verbose = verbose
         if self.logpath is not None:
             with open(self.logpath, "w") as f:
                 pass
         
 
-    def getRecord(self, enc_no, req_resources, savepath, destinationfile, form="json"):
+    def getRecord(self, enc_no, req_resources, savepath, destinationfile, config_path, profile, form="json"):
         enc_no = [enc_no]
-        if not self.checkValidEncounter(enc_no):
-            print("Encounter identifier validation failed, check server connection and encounter identifier. Aborting...")
-            exit()
+        res_dict = self.loadConfig(config_path, profile)
 
-        pat_no = self.getPatientNumber(enc_no, form)
-        res_dict = { 
-                "MedicationRequest" : ["?encounter=", None],
-                "MedicationStatement" : ["?subject=", pat_no],
-                "Encounter" : ["?_id=", enc_no],
-                "Patient" : ["?_has:Encounter:patient:_id=", enc_no],
-                "MedicationAdministration" : ["?subject=", pat_no],
-                "Observation": ["?subject=", pat_no],
-            }
+        
 
         format_dict = {
                 "json" : "&_format=json",
                 "xml" : "&_format=xml"
             }
 
+        if not self.checkValidEncounter(enc_no):
+            print("Encounter identifier validation failed, check server connection and encounter identifier. Aborting...")
+            exit()
+
+        pat_no = self.getPatientNumber(enc_no, res_dict, form)   
+
+        for v in res_dict.values():
+            if v[1][0] == "encounter_id":
+                v[1][0] = enc_no[0]
+            elif v[1][0] == "patient_id":
+                v[1][0] = pat_no[0]
 
         res_lst = []
         med_id_lst = []
@@ -46,13 +49,11 @@ class Loader():
                 res_lst.extend(med_res)
             else:
                 search_url = self.fhirbase + resource + res_dict[resource][0] + str(res_dict[resource][1][0]) + format_dict[form]
-                print(search_url)
+                if self.verbose > 0:
+                    print(search_url)
                 req = requests.get(search_url)
                 self.printRequestsMessage(req, search_url)
                 downloads = str(req.content, encoding='cp1252')
-                
-                with open(savepath + "/" + resource + ".json", "w")  as f:
-                    f.write(downloads)
 
                 if form == "json":
                     json_data = json.loads(downloads)
@@ -107,8 +108,8 @@ class Loader():
         with open(self.logpath, "a") as f:
             f.writelines(msg + "\n")
 
-    def getPatientNumber(self, enc_no, form="json"):
-        search_url = self.fhirbase + "Patient?_has:Encounter:patient:_id=" + enc_no[0]
+    def getPatientNumber(self, enc_no, res_dict, form="json"):
+        search_url = self.fhirbase + "Patient" + res_dict["Patient"][0] + enc_no[0]
         print(search_url)
         req = requests.get(search_url)
         downloads = str(req.content, encoding='cp1252')
@@ -129,7 +130,8 @@ class Loader():
         res_lst = []
         for med in med_id_lst:
             search_url = self.fhirbase + "Medication?_id=" + med
-            print(search_url)
+            if self.verbose > 0:
+                print(search_url)
             req = requests.get(search_url)
             self.printRequestsMessage(req, search_url)
             downloads = str(req.content, encoding='cp1252')
@@ -147,15 +149,15 @@ class Loader():
 
         return [res_lst]
 
-    def printRequestsMessage(self, req, search_url, verbose=1):
+    def printRequestsMessage(self, req, search_url):
         if req.ok:
-            if verbose > 0:
+            if self.verbose > 0:
                 print("Download completed.")
             return True
         else:
             errormsg = "Download Error: " + search_url
             self.errorstatus = True
-            if verbose > 0:
+            if self.verbose > 0:
                 print(errormsg)
             self.writeLogmsg(errormsg)
             return False
@@ -164,7 +166,7 @@ class Loader():
         search_url = self.fhirbase + "Encounter?_id=" + enc_no[0]
         req = requests.get(search_url)
         errormsg = "Encounter identifier validation failed."
-        if not self.printRequestsMessage(req, search_url, verbose=0):
+        if not self.printRequestsMessage(req, search_url):
             self.writeLogmsg(errormsg)
             return False
         self.printRequestsMessage(req, search_url)
@@ -176,14 +178,16 @@ class Loader():
             self.writeLogmsg(errormsg)
             return False
 
+    def loadConfig(self, config_path, profile):
+        res_dct = {}
+        with open(config_path, "r") as f:
+            json_data = json.load(f)
 
-if __name__ == "__main__":
-    logpath = r"log.txt"
-    fhirbase = r"https://mii-agiop-3p.life.uni-leipzig.de/fhir/"
-    #fhirbase = r"http://127.0.0.1:8080/"
-    req_resources = [ "Encounter", "Patient", "Observation", "MedicationAdministration", "MedicationStatement", "Medication"]
-    savepath = r"tests"
-    destinationfile = r"test1.json"
-    enc_no = "1"
-    loader = Loader(fhirbase=fhirbase, logpath=logpath)
-    loader.getRecord(enc_no, req_resources, savepath, destinationfile)
+        for _ in json_data[profile]:
+            res_dct[_["resourceType"]] = [ _["loadingSuffix"], [_["loadingCode"]] ]
+
+        return res_dct
+
+
+
+

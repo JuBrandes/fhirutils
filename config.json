@@ -1,0 +1,53 @@
+{
+    "ID Logik":
+        [ 
+            {
+                "resourceType": "MedicationStatement",
+                "loadingSuffix": "?encounter=",
+                "loadingCode": "encounter_id"
+            },
+            {
+                "resourceType": "Encounter",
+                "loadingSuffix": "?_id=",
+                "loadingCode": "encounter_id"
+            },
+            {
+                "resourceType": "Patient",
+                "loadingSuffix": "?encounter=",
+                "loadingCode": "encounter_id"
+            },
+            {
+                "resourceType": "MedicationAdministration" ,
+                "loadingSuffix": "?context=",
+                "loadingCode": "encounter_id"
+            },
+            {
+                "resourceType": "MedicationRequest" ,
+                "loadingSuffix": "?encounter=",
+                "loadingCode": "encounter_id"
+            }
+        ],
+    "KDS":
+        [
+            {
+                "resourceType": "MedicationStatement",
+                "loadingSuffix": "?subject=",
+                "loadingCode": "patient_id"
+            },
+            {
+                "resourceType": "Encounter",
+                "loadingSuffix": "?_id=",
+                "loadingCode": "encounter_id"
+            },
+            {
+                "resourceType": "Patient",
+                "loadingSuffix": "?_has:Encounter:patient:_id=",
+                "loadingCode": "encounter_id"
+            },
+            {
+                "resourceType": "MedicationAdministration" ,
+                "loadingSuffix": "?subject=",
+                "loadingCode": "patient_id"
+            }
+        ]
+}
