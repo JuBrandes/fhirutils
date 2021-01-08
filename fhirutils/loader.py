@@ -6,6 +6,41 @@ import time
 import csv
 
 class Loader():
+    """A class that provides methods to download FHIR-resources into a bundle.
+
+    This class can be used to download a patient's record as a bundle.
+    Your specific resources' reference policies have to be specified via the
+    config file before usage.
+
+    Attributes
+    --------------
+    fhirbase : str
+        a raw string representing the FHIR-base incl. trailing "/"
+    logpath : str
+        a raw string representing the logfile's name incl. path
+    verbose : int
+        integer, sets the verbosity level (0: low, 1: high verbosity [default])
+
+    Methods
+    --------------
+    get Record(enc_no, req_resources, savepath, destinationfile, config_path, profile, form)
+        entry method, returns bundle of resources connotated with encounter-no
+    createBundle(res_lst, form)
+        creates a bundle from given resource-list
+    writeLogMsg(msg)
+        writes a stringinto logfile
+    getPatientNumber(self, enc_no, res_dict, form)
+        returns the patient id that belongs to the encounter id
+    getMedicationResources(med_id_lst, form):
+        returns a list of medication resources matching the medication id list
+    printRequestsMessage(req, search_url)
+        checks http response code from given requests-obj, print to screen/log
+    checkValidEncounter(enc_no)
+        check if encounter-no is valid and existing on server
+    loadConfig(config_path, profile)
+        load FHIR profile from config file
+    """
+
     def __init__(self, fhirbase=None, logpath=None, verbose = 1):
         self.logpath = logpath
         self.fhirbase = fhirbase
@@ -16,15 +51,42 @@ class Loader():
                 pass
         
 
-    def getRecord(self, enc_no, req_resources, savepath, destinationfile, config_path, profile, form="json"):
+    def getRecord(self, enc_no, req_resources, savepath, destinationfile, config_path, profile, count=100, form="json"):
+        """entry method, returns bundle of resources connotated with encounter-no
+
+        Parameters
+        --------------
+        enc_no : int
+            encounter id, used as the patient's core identifier that is of interest
+        req_resources : list of strings
+            contains the the resources' description that are to be downloaded
+            examples: Encounter, Patient, MedicationStatement, Medication
+        savepath : raw string
+            path where the bundle shall be stored
+        destinationfile : raw string
+            the downloaded bundle's filename, saved in 'savepath'
+        config_path : raw string
+            path to config file
+        profile : string
+            FHIR profile that is loaded from config file
+            determines the resources' references
+        form : string
+            sets FHIR represantation: json or xml (not implemented yet)
+        count : integer
+            matches FHIR-search's _count=, default 100
+
+        Return
+        --------------
+        bundle as a json object
+        
+        """
+
         enc_no = [enc_no]
         res_dict = self.loadConfig(config_path, profile)
 
-        
-
         format_dict = {
-                "json" : "&_format=json",
-                "xml" : "&_format=xml"
+                "json" : "&_format=json&_count=" + str(count),
+                "xml" : "&_format=xml&_count=" + str(count)
             }
 
         if not self.checkValidEncounter(enc_no):
@@ -42,7 +104,6 @@ class Loader():
         res_lst = []
         med_id_lst = []
         
-
         for resource in req_resources:
             if resource == "Medication":
                 med_res = self.getMedicationResources(med_id_lst)
@@ -85,6 +146,8 @@ class Loader():
             if self.errorstatus:
                 print("Errors have occured. Please check the log, if enabled.")
 
+        return bundle
+
     def createBundle(self, res_lst, form):
         identifier = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(40))
         timestring = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime())
@@ -125,7 +188,6 @@ class Loader():
                 self.errorstatus = True
                 self.writeLogmsg(msg)
 
-
     def getMedicationResources(self, med_id_lst, form="json"):
         res_lst = []
         for med in med_id_lst:
@@ -145,7 +207,6 @@ class Loader():
                     self.errorstatus = True
                     if self.logpath is not None:
                         self.writeLogmsg(msg)
-
 
         return [res_lst]
 
@@ -188,6 +249,20 @@ class Loader():
 
         return res_dct
 
+if __name__ == "__main__":
+    logpath = r"log.txt"
+    fhirbase = r"https://mii-agiop-3p.life.uni-leipzig.de/fhir/"
+    req_resources = [ "Encounter", "Patient", "MedicationStatement", "Medication"]
+    savepath = #set path 
+    config_path = #set path config.json
+    profile = "KDS"
+    count = 10000
 
+    loader = Loader(fhirbase=fhirbase, logpath=logpath)
+        
+    encounters = ["1", "439", "UKB003E-1"]
 
-
+    for enc in encounters:
+        destinationfile = enc + ".json"
+        enc_no = enc
+        loader.getRecord(enc_no, req_resources, savepath, destinationfile, config_path, profile, count)
