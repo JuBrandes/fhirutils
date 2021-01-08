@@ -24,7 +24,7 @@ For using the features you can either import the project into your namespace or 
 
 ### Download a patient's record to a FHIR bundle
 The Loader class in fhirutils/loader.py provides a functionality of downloading a patient's record if the encounter id is known.
-Open fhirutils/loader.py and scroll to the file's end. Here you can set the required parameters. Most parameters are predefined for a test run. Manually set are the save path and the config path.
+Open fhirutils/loader.py and scroll to the file's end. Here you can set the required parameters. Most parameters are predefined for a test run. Manually to be set is the save path where the downloaded bundle is to be saved.
 Maybe you have to add a profile in config.json to meet the resources' references between each other, but at first you can give it a try with the predefined "KDS" profile.
 
 ### Get an item from a FHIR resource by a json pathway
