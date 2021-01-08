@@ -23,7 +23,7 @@ class Utils():
             p: json path, e.g.: "entry.0.resource.status"
             s: source, can be a url or a local file
             t: the source's type, "url" (default) or "local"
-            f: format of loaded resource/bundle, "json" (default) oder "xml"
+            f: format of loaded resource/bundle, "json" (default) or "xml" (not yet implemented!)
 
         returns:
             tuple: (path, result)
@@ -31,7 +31,6 @@ class Utils():
 
         if t == "url":
             search_url = s + self.format_dict[f]
-            #search_url = s
             print(search_url)
             req = requests.get(search_url)
             downloads = str(req.content, encoding='cp1252')

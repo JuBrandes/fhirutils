@@ -253,8 +253,8 @@ if __name__ == "__main__":
     logpath = r"log.txt"
     fhirbase = r"https://mii-agiop-3p.life.uni-leipzig.de/fhir/"
     req_resources = [ "Encounter", "Patient", "MedicationStatement", "Medication"]
-    savepath = #set path 
-    config_path = #set path config.json
+    savepath = "" #set path 
+    config_path = r"config.json"
     profile = "KDS"
     count = 10000
 
