@@ -1,4 +1,3 @@
-
 name: python-lint
 
 on: [push, pull_request]
