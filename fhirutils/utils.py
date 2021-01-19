@@ -2,17 +2,18 @@ import pandas as pd
 import requests
 import json
 
+
 class Utils():
     def __init__(self, logpath=None):
         self.logpath = logpath
         self.errorstatus = False
         if self.logpath is not None:
-            with open(self.logpath, "w") as f:
+            with open(self.logpath, "w") as _:
                 pass
 
         self.format_dict = {
-                "json" : "&_format=json",
-                "xml" : "&_format=xml"
+                "json": "&_format=json",
+                "xml": "&_format=xml"
             }
 
     def get(self, i=None, s=None, t="url", f="json"):
@@ -29,6 +30,7 @@ class Utils():
             tuple: (path, result)
         """
 
+        json_data = None
         if t == "url":
             search_url = s + self.format_dict[f]
             print(search_url)
@@ -36,16 +38,14 @@ class Utils():
             downloads = str(req.content, encoding='cp1252')
             if f == "json":
                 json_data = json.loads(downloads)
-                
 
         elif t == "local":
             with open(s, "r") as source:
                 json_data = json.loads(source.read())
 
         result_value = self.find_by_path(i, json_data)
-    
-        return result_value
 
+        return result_value
 
     def find_by_path(self, element, data):
         path = element.split(".")
@@ -74,6 +74,7 @@ class Utils():
                         except KeyError:
                             keyerror = True
                     if not keyerror:
+                        path_copy = None
                         for j in range(len(path)):
                             if path[j] == "X":
                                 path_copy = path.copy()
@@ -95,7 +96,6 @@ class Utils():
         df.columns = ["path", "value"]
         return df
 
-     
 
 if __name__ == "__main__":
     util = Utils()
@@ -103,6 +103,3 @@ if __name__ == "__main__":
     t = "url"
     i = "entry.X.resource.id"
     print(util.get(i=i, s=s, t=t))
-    
-
-
