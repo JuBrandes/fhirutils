@@ -30,6 +30,7 @@ class Utils():
             tuple: (path, result)
         """
 
+        json_data=None
         if t == "url":
             search_url = s + self.format_dict[f]
             print(search_url)
@@ -73,6 +74,7 @@ class Utils():
                         except KeyError:
                             keyerror = True
                     if not keyerror:
+                        path_copy = None
                         for j in range(len(path)):
                             if path[j] == "X":
                                 path_copy = path.copy()

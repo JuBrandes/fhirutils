@@ -177,6 +177,7 @@ class Loader():
         return bundle
 
     def createBundle(self, res_lst, form):
+        bundle = None
         identifier = "".join(
             random.choice(string.ascii_uppercase + string.digits)
             for _ in range(40)
@@ -203,6 +204,7 @@ class Loader():
             f.writelines(msg + "\n")
 
     def getPatientNumber(self, enc_no, res_dict, form="json"):
+        pat_no = None
         search_url = self.fhirbase + "Patient" + res_dict["Patient"][0] + enc_no[0]
         print(search_url)
         req = requests.get(search_url)
