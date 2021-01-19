@@ -21,9 +21,9 @@ class Utils():
         returns a data item from a FHIR-resource/bundle by given json-path
 
         args:
-            p: json path, e.g.: "entry.0.resource.status"
-            s: source, can be a url or a local file
-            t: the source's type, "url" (default) or "local"
+            i: item via json path, e.g.: "entry.0.resource.status"
+            s: source, can be a url, a local file or a bundle
+            t: the source's type, "url" (default), "local" or "bundle"
             f: format of loaded resource/bundle, "json" (default) or "xml" (not yet implemented!)
 
         returns:
@@ -42,6 +42,9 @@ class Utils():
         elif t == "local":
             with open(s, "r") as source:
                 json_data = json.loads(source.read())
+
+        elif t == "resource":
+            json_data = s
 
         result_value = self.find_by_path(i, json_data)
 
@@ -91,9 +94,12 @@ class Utils():
                 d = d[item]
             except TypeError:
                 pass
+            except KeyError:
+                pass
 
         df = pd.DataFrame([element, d]).T
         df.columns = ["path", "value"]
+
         return df
 
 
