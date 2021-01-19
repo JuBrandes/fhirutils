@@ -3,6 +3,7 @@ import json
 import random
 import string
 import time
+from utils import Utils
 # import csv
 
 
@@ -53,17 +54,15 @@ class Loader():
             with open(self.logpath, "w") as _:
                 pass
 
-    def getRecord(
-                self,
-                enc_no,
-                req_resources,
-                config_path,
-                profile,
-                savepath=None,
-                destinationfile=None,
-                count=100,
-                form="json"
-                ):
+    def getRecord(self,
+                  enc_no,
+                  req_resources,
+                  config_path,
+                  profile,
+                  savepath=None,
+                  destinationfile=None,
+                  count=100,
+                  form="json"):
         """entry method, returns bundle of resources connotated with encounter-no
         Parameters
         --------------
@@ -135,6 +134,7 @@ class Loader():
                     json_data = json.loads(downloads)
                     try:
                         for item in json_data["entry"]:
+                            item = self.validate_resolve(item)
                             res_lst.append(item)
                             if (
                                 resource == "MedicationAdministration" or
@@ -281,28 +281,107 @@ class Loader():
 
         return res_dct
 
+    def validate_resolve(self, res):
+
+        utils = Utils()
+        to_check = utils.get(i="", s=res, t="resource", f="json")["value"][0]
+
+        if "request" not in to_check:  # checks if there is a transaction verb. If not: add one
+            res_type = utils.get(i="resource.resourceType",
+                                 s=to_check,
+                                 t="resource",
+                                 f="json")["value"][0]
+            res_id = utils.get(i="resource.id", s=to_check, t="resource", f="json")["value"][0]
+            to_check["request"] = {
+                "method": "PUT",
+                "url": res_type + "/" + res_id
+            }
+            return to_check
+
+        return to_check
+
+
+class Connector():
+    def __init__(self,
+                 fhirbase_source=None,
+                 fhirbase_destination=None,
+                 logpath=None,
+                 verbose=1):
+        self.logpath = logpath
+        self.fhirbase_source = fhirbase_source
+        self.fhirbase_destination = fhirbase_destination
+        self.errorstatus = False
+        self.verbose = verbose
+
+        self.loader = Loader(fhirbase=self.fhirbase_source, logpath=self.logpath)
+
+        if self.logpath is not None:
+            with open(self.logpath, "w") as _:
+                pass
+
+    def connect(self,
+                enc_no,
+                req_resources,
+                config_path,
+                profile,
+                method="PUT",
+                count=100,
+                form="json"):
+
+        bundle = self.loader.getRecord(enc_no,
+                                       req_resources,
+                                       config_path,
+                                       profile,
+                                       count=count,
+                                       form=form)
+
+        req = None
+        if method == "PUT":
+            req = requests.put(self.fhirbase_destination, json=bundle)
+            print(req.reqtext)
+        elif method == "POST":
+            req = requests.post(self.fhirbase_destination, json=bundle)
+
+        if req.ok:
+            print("Upload completed...")
+        elif req.ok is False:
+            msg = "Upload Error. Status code: " + str(req.status_code)
+            print(msg)
+            self.writeLogmsg(msg)
+            utils = Utils()
+            content = json.loads(req.content)
+            errormsg = utils.get(i="issue.0.details.text",
+                                 s=content,
+                                 t="resource",
+                                 f="json")["value"]
+            self.writeLogmsg(errormsg)
+
+    def writeLogmsg(self, msg):
+        with open(self.logpath, "a") as f:
+            f.writelines(msg + "\n")
+
 
 if __name__ == "__main__":
-    logpath = r"log.txt"
-    fhirbase = r"https://mii-agiop-3p.life.uni-leipzig.de/fhir/"
+    logpath = r"log_test.txt"
+    fhirbase_source = r"https://mii-agiop-3p.life.uni-leipzig.de/fhir/"
+    fhirbase_destination = r"http://10.50.8.8:8083/"
     req_resources = ["Encounter", "Patient", "MedicationStatement", "Medication"]
-    savepath = r""  # set path
     config_path = r"config.json"
     profile = "KDS"
     count = 10000
+    method = "POST"
 
-    loader = Loader(fhirbase=fhirbase, logpath=logpath)
-    encounters = ["1", "439", "UKB003E-1"]
+    # loader = Loader(fhirbase=fhirbase, logpath=logpath)
+    connector = Connector(fhirbase_source=fhirbase_source,
+                          fhirbase_destination=fhirbase_destination,
+                          logpath=logpath)
+    encounters = ["UKB001E-1"]
 
     for enc in encounters:
-        destinationfile = enc + ".json"
         enc_no = enc
-        loader.getRecord(
-            enc_no,
-            req_resources,
-            config_path,
-            profile,
-            savepath,
-            destinationfile,
-            count
-            )
+        connector.connect(enc_no,
+                          req_resources,
+                          config_path,
+                          profile,
+                          method,
+                          count)
