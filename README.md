@@ -22,10 +22,18 @@ git clone https://github.com/JuBrandes/fhirutils/
 The features will constantly grow during development. New features will be described here.
 For using the features you can either import the project into your namespace or you can use the py-files directly. The latter method is described below.
 
+### Connect two FHIR servers to transfer bundles
+The Connector class can be used to download a patient's record according to his/her encounter id from FHIR server A. This record then is automatically uploaded to FHIR server B. To test the class do this:
+- open fhirutils/loader.py
+- add resp. change the FHIR servers' urls (fhirbase_source, fhirbase_destination)
+- if you changed the source url make shure you added a valid encounter id that exists on FHIR server A
+- Maybe you have to add a profile in config.json to meet the resources' references between each other, but at first you can give it a try with the predefined "KDS" profile.
+- run the script
+
 ### Download a patient's record to a FHIR bundle
-The Loader class in fhirutils/loader.py provides a functionality of downloading a patient's record if the encounter id is known.
-Open fhirutils/loader.py and scroll to the file's end. Here you can set the required parameters. Most parameters are predefined for a test run. Manually to be set is the save path where the downloaded bundle is to be saved.
-Maybe you have to add a profile in config.json to meet the resources' references between each other, but at first you can give it a try with the predefined "KDS" profile.
+The Loader class in fhirutils/loader.py provides a functionality of downloading a patient's record if the encounter id is known. This is the first step of Connector.
+Open fhirutils/loader.py and scroll to the file's end. Here you can set the required parameters and call Loader. 
+
 
 ### Get an item from a FHIR resource by a json pathway
 The Utils class in fhirutils/utils.py provides a method get() that accesses one or more values in a FHIR resource by giving the path that identifies the value of interest.
