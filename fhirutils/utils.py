@@ -30,7 +30,7 @@ class Utils():
             tuple: (path, result)
         """
 
-        json_data=None
+        json_data = None
         if t == "url":
             search_url = s + self.format_dict[f]
             print(search_url)
