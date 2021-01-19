@@ -3,7 +3,8 @@ import json
 import random
 import string
 import time
-import csv
+# import csv
+
 
 class Loader():
     """A class that provides methods to download FHIR-resources into a bundle.
@@ -41,17 +42,31 @@ class Loader():
         load FHIR profile from config file
     """
 
-    def __init__(self, fhirbase=None, logpath=None, verbose = 1):
+    def __init__(
+                self,
+                fhirbase=None,
+                logpath=None,
+                verbose=1
+                ):
         self.logpath = logpath
         self.fhirbase = fhirbase
         self.errorstatus = False
         self.verbose = verbose
         if self.logpath is not None:
-            with open(self.logpath, "w") as f:
+            with open(self.logpath, "w") as _:
                 pass
-        
 
-    def getRecord(self, enc_no, req_resources, savepath, destinationfile, config_path, profile, count=100, form="json"):
+    def getRecord(
+                self,
+                enc_no,
+                req_resources,
+                config_path,
+                profile,
+                savepath=None,
+                destinationfile=None,
+                count=100,
+                form="json"
+                ):
         """entry method, returns bundle of resources connotated with encounter-no
 
         Parameters
@@ -78,22 +93,23 @@ class Loader():
         Return
         --------------
         bundle as a json object
-        
         """
 
         enc_no = [enc_no]
         res_dict = self.loadConfig(config_path, profile)
 
         format_dict = {
-                "json" : "&_format=json&_count=" + str(count),
-                "xml" : "&_format=xml&_count=" + str(count)
+                "json": "&_format=json&_count=" + str(count),
+                "xml": "&_format=xml&_count=" + str(count)
             }
 
         if not self.checkValidEncounter(enc_no):
-            print("Encounter identifier validation failed, check server connection and encounter identifier. Aborting...")
+            print(
+                "Encounter identifier validation failed, \
+                check server connection and encounter identifier. Aborting...")
             exit()
 
-        pat_no = self.getPatientNumber(enc_no, res_dict, form)   
+        pat_no = self.getPatientNumber(enc_no, res_dict, form)
 
         for v in res_dict.values():
             if v[1][0] == "encounter_id":
@@ -103,13 +119,17 @@ class Loader():
 
         res_lst = []
         med_id_lst = []
-        
+
         for resource in req_resources:
             if resource == "Medication":
                 med_res = self.getMedicationResources(med_id_lst)
                 res_lst.extend(med_res)
             else:
-                search_url = self.fhirbase + resource + res_dict[resource][0] + str(res_dict[resource][1][0]) + format_dict[form]
+                search_url = self.fhirbase + \
+                            resource + \
+                            res_dict[resource][0] + \
+                            str(res_dict[resource][1][0]) + \
+                            format_dict[form]
                 if self.verbose > 0:
                     print(search_url)
                 req = requests.get(search_url)
@@ -121,35 +141,46 @@ class Loader():
                     try:
                         for item in json_data["entry"]:
                             res_lst.append(item)
-                            if resource == "MedicationAdministration" or resource == "MedicationStatement" or resource == "MedicationRequest":
+                            if (
+                                resource == "MedicationAdministration" or
+                                resource == "MedicationStatement" or
+                                resource == "MedicationRequest"
+                            ):
                                 try:
                                     med_id = item["resource"]["medicationReference"]["reference"]
-                                    med_id = med_id.split("Medication/",1)[1]
+                                    med_id = med_id.split("Medication/", 1)[1]
                                     if med_id not in med_id_lst:
                                         med_id_lst.append(med_id)
                                 except KeyError:
                                     pass
                     except KeyError:
-                        msg = "Encounter ID " + enc_no[0] + " -> Requested resource (" + resource + "): No resource found"
+                        msg = "Encounter ID " + \
+                            enc_no[0] + \
+                            " -> Requested resource (" + \
+                            resource + \
+                            "): No resource found"
                         self.errorstatus = True
                         if self.logpath is not None:
-                            self.writeLogmsg(msg)            
+                            self.writeLogmsg(msg)
 
         bundle = self.createBundle(res_lst, form)
 
-        path_str = savepath + "/" + destinationfile
-
-        with open(path_str, "w", encoding="utf-8") as f:
-            json.dump(bundle, f, ensure_ascii=False, indent=4)
-            print("-----------------------------------------------")
-            print("Bundle created and saved to " + path_str + ".")
-            if self.errorstatus:
-                print("Errors have occured. Please check the log, if enabled.")
+        if savepath is not None:
+            path_str = savepath + "/" + destinationfile
+            with open(path_str, "w", encoding="utf-8") as f:
+                json.dump(bundle, f, ensure_ascii=False, indent=4)
+                print("-----------------------------------------------")
+                print("Bundle created and saved to " + path_str + ".")
+                if self.errorstatus:
+                    print("Errors have occured. Please check the log, if enabled.")
 
         return bundle
 
     def createBundle(self, res_lst, form):
-        identifier = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(40))
+        identifier = "".join(
+            random.choice(string.ascii_uppercase + string.digits)
+            for _ in range(40)
+        )
         timestring = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime())
         timestring = "{0}:{1}".format(
                         timestring[:-2],
@@ -157,13 +188,13 @@ class Loader():
                     )
 
         if form == "json":
-            bundle = {  "resourceType" : "Bundle",
-                        "type" : "searchset",
-                        "entry" : res_lst,
-                        "total" : len(res_lst),
-                        "id" : identifier,
-                        "meta" : { "lastUpdated" : timestring},
-                   }
+            bundle = {
+                "resourceType": "Bundle",
+                "type": "transaction",
+                "entry": res_lst,
+                "id": identifier,
+                "meta": {"lastUpdated": timestring},
+            }
 
         return bundle
 
@@ -183,7 +214,9 @@ class Loader():
                     pat_no = item["resource"]["id"]
                 return [pat_no]
             except KeyError:
-                msg = "Encounter ID " + enc_no[0] + " -> Requested resource (Patient): No resource found"
+                msg = "Encounter ID " + \
+                    enc_no[0] + \
+                    " -> Requested resource (Patient): No resource found"
                 print(msg)
                 self.errorstatus = True
                 self.writeLogmsg(msg)
@@ -203,7 +236,9 @@ class Loader():
                     for item in json_data["entry"]:
                         res_lst.append(item)
                 except KeyError:
-                    msg = "Medication ID " + med + " -> Requested resource (Medication): No resource found"
+                    msg = "Medication ID " + \
+                        med + \
+                        " -> Requested resource (Medication): No resource found"
                     self.errorstatus = True
                     if self.logpath is not None:
                         self.writeLogmsg(msg)
@@ -245,24 +280,32 @@ class Loader():
             json_data = json.load(f)
 
         for _ in json_data[profile]:
-            res_dct[_["resourceType"]] = [ _["loadingSuffix"], [_["loadingCode"]] ]
+            res_dct[_["resourceType"]] = [_["loadingSuffix"], [_["loadingCode"]]]
 
         return res_dct
+
 
 if __name__ == "__main__":
     logpath = r"log.txt"
     fhirbase = r"https://mii-agiop-3p.life.uni-leipzig.de/fhir/"
-    req_resources = [ "Encounter", "Patient", "MedicationStatement", "Medication"]
-    savepath = "" #set path 
+    req_resources = ["Encounter", "Patient", "MedicationStatement", "Medication"]
+    savepath = r""  # set path
     config_path = r"config.json"
     profile = "KDS"
     count = 10000
 
     loader = Loader(fhirbase=fhirbase, logpath=logpath)
-        
     encounters = ["1", "439", "UKB003E-1"]
 
     for enc in encounters:
         destinationfile = enc + ".json"
         enc_no = enc
-        loader.getRecord(enc_no, req_resources, savepath, destinationfile, config_path, profile, count)
+        loader.getRecord(
+            enc_no,
+            req_resources,
+            config_path,
+            profile,
+            savepath,
+            destinationfile,
+            count
+            )
