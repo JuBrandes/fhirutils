@@ -1,7 +1,8 @@
 *.code-workspace
 *.csv
 fhirton.py
-log.txt
+*.txt
 *__pycache__*
 tests/*.json
 *.egg-info
+.vscode/

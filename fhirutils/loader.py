@@ -4,7 +4,7 @@ import random
 import string
 import time
 from utils import Utils
-# import csv
+import csv
 
 
 class Loader():
@@ -134,8 +134,10 @@ class Loader():
                     json_data = json.loads(downloads)
                     try:
                         for item in json_data["entry"]:
-                            item = self.validate_resolve(item)
-                            res_lst.append(item)
+                            if self.validate_resolve(item) is not None:
+                                item = self.validate_resolve(item)
+                                res_lst.append(item)
+                            # res_lst.append(item)
                             if (
                                 resource == "MedicationAdministration" or
                                 resource == "MedicationStatement" or
@@ -144,12 +146,12 @@ class Loader():
                                 try:
                                     med_id = item["resource"]["medicationReference"]["reference"]
                                     med_id = med_id.split("Medication/", 1)[1]
-                                    if med_id not in med_id_lst:
+                                    if med_id not in med_id_lst and "?" not in med_id:
                                         med_id_lst.append(med_id)
                                 except KeyError:
                                     pass
                     except KeyError:
-                        msg = "Encounter ID " + \
+                        msg = "Warning: Encounter ID " + \
                             enc_no[0] + \
                             " -> Requested resource (" + \
                             resource + \
@@ -196,7 +198,9 @@ class Loader():
 
     def writeLogmsg(self, msg):
         with open(self.logpath, "a") as f:
-            f.writelines(msg + "\n")
+            current_time = time.strftime("%m/%d/%Y, %H:%M:%S")
+            msg = current_time + " " + msg + "\n"
+            f.writelines(msg)
 
     def getPatientNumber(self, enc_no, res_dict, form="json"):
         pat_no = None
@@ -211,7 +215,7 @@ class Loader():
                     pat_no = item["resource"]["id"]
                 return [pat_no]
             except KeyError:
-                msg = "Encounter ID " + \
+                msg = "Warning: Encounter ID " + \
                     enc_no[0] + \
                     " -> Requested resource (Patient): No resource found"
                 print(msg)
@@ -233,14 +237,14 @@ class Loader():
                     for item in json_data["entry"]:
                         res_lst.append(item)
                 except KeyError:
-                    msg = "Medication ID " + \
+                    msg = "Warning: Medication ID " + \
                         med + \
                         " -> Requested resource (Medication): No resource found"
                     self.errorstatus = True
                     if self.logpath is not None:
                         self.writeLogmsg(msg)
 
-        return [res_lst]
+        return res_lst
 
     def printRequestsMessage(self, req, search_url):
         if req.ok:
@@ -297,7 +301,19 @@ class Loader():
         utils = Utils()
         to_check = utils.get(i="", s=res, t="resource", f="json")["value"][0]
 
-        if "request" not in to_check:  # checks if there is a transaction verb. If not: add one
+        # checks for a certain non-resolvable medication reference occuring in
+        # ID Berlin's MedicationStatements with non-standardised medication prescriptions.
+        # If found: delete resource and return None object
+        try:
+            if "Medication/?" == to_check["resource"]["medicationReference"]["reference"]:
+                msg = "Warning: MedicationStatement deleted due to non-resolvable reference ?."
+                self.writeLogmsg(msg)
+                return None
+        except KeyError:
+            pass
+
+        # checks if there is a transaction verb. If not: add one
+        if "request" not in to_check:
             res_type = utils.get(i="resource.resourceType",
                                  s=to_check,
                                  t="resource",
@@ -307,7 +323,6 @@ class Loader():
                 "method": "PUT",
                 "url": res_type + "/" + res_id
             }
-            return to_check
 
         return to_check
 
@@ -346,6 +361,9 @@ class Connector():
                                        count=count,
                                        form=form)
 
+        with open("testbundle.json", "w") as f:
+            json.dump(bundle, f)
+
         req = None
         if method == "PUT":
             req = requests.put(self.fhirbase_destination, json=bundle)
@@ -369,24 +387,36 @@ class Connector():
 
     def writeLogmsg(self, msg):
         with open(self.logpath, "a") as f:
-            f.writelines(msg + "\n")
+            current_time = time.strftime("%m/%d/%Y, %H:%M:%S")
+            msg = current_time + " " + msg + "\n"
+            f.writelines(msg)
+
 
 
 if __name__ == "__main__":
     logpath = r"log_test.txt"
-    fhirbase_source = r"https://mii-agiop-3p.life.uni-leipzig.de/fhir/"
-    fhirbase_destination = r"http://fhirbase_destination"  # set fhirbase of destination server
+    fhirbase_source = r"" # set fhirbase of source server
+    fhirbase_destination = r""  # set fhirbase of destination server
     req_resources = ["Encounter", "Patient", "MedicationStatement", "Medication"]
     config_path = r"config.json"
-    profile = "KDS"
+    profile = "ID Logik"
     count = 10000
     method = "POST"
 
     connector = Connector(fhirbase_source=fhirbase_source,
                           fhirbase_destination=fhirbase_destination,
                           logpath=logpath)
-    encounters = ["UKB001E-1"]
+    # encounters = ["16626053"]
 
+    encounters = []
+    with open("encounters.csv", "r") as f:
+        csv_reader = csv.reader(f)
+        _enc = [x[0] for x in csv_reader]
+        for e in _enc:
+            if e not in encounters:
+                encounters.append(e)
+
+    print(encounters)
     for enc in encounters:
         enc_no = enc
         connector.connect(enc_no,
