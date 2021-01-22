@@ -1,7 +1,5 @@
 import requests
 import json
-import random
-import string
 import time
 from utils import Utils
 import csv
@@ -24,8 +22,6 @@ class Loader():
     --------------
     get Record(enc_no, req_resources, savepath, destinationfile, config_path, profile, form)
         entry method, returns bundle of resources connotated with encounter-no
-    createBundle(res_lst, form)
-        creates a bundle from given resource-list
     writeLogMsg(msg)
         writes a stringinto logfile
     getPatientNumber(self, enc_no, res_dict, form)
@@ -50,6 +46,7 @@ class Loader():
         self.fhirbase = fhirbase
         self.errorstatus = False
         self.verbose = verbose
+        self.utils = Utils()
         if self.logpath is not None:
             with open(self.logpath, "w") as _:
                 pass
@@ -137,7 +134,6 @@ class Loader():
                             if self.validate_resolve(item) is not None:
                                 item = self.validate_resolve(item)
                                 res_lst.append(item)
-                            # res_lst.append(item)
                             if (
                                 resource == "MedicationAdministration" or
                                 resource == "MedicationStatement" or
@@ -160,7 +156,7 @@ class Loader():
                         if self.logpath is not None:
                             self.writeLogmsg(msg)
 
-        bundle = self.createBundle(res_lst, form)
+        bundle = self.utils.create_bundle(res_lst=res_lst, btype="transaction", form=form)
 
         if savepath is not None:
             path_str = savepath + "/" + destinationfile
@@ -170,27 +166,6 @@ class Loader():
                 print("Bundle created and saved to " + path_str + ".")
                 if self.errorstatus:
                     print("Errors have occured. Please check the log, if enabled.")
-
-        return bundle
-
-    def createBundle(self, res_lst, form):
-        bundle = None
-        identifier = "".join(random.choice(string.ascii_uppercase + string.digits)
-                             for _ in range(40))
-        timestring = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime())
-        timestring = "{0}:{1}".format(
-                        timestring[:-2],
-                        timestring[-2:]
-                    )
-
-        if form == "json":
-            bundle = {
-                "resourceType": "Bundle",
-                "type": "transaction",
-                "entry": res_lst,
-                "id": identifier,
-                "meta": {"lastUpdated": timestring},
-            }
 
         return bundle
 
@@ -296,8 +271,7 @@ class Loader():
         a (in case corrected) resource as dict
         """
 
-        utils = Utils()
-        to_check = utils.get(i="", s=res, t="resource", f="json")["value"][0]
+        to_check = self.utils.get(i="", s=res, t="resource", f="json")["value"][0]
 
         # checks for a certain non-resolvable medication reference occuring in
         # ID Berlin's MedicationStatements with non-standardised medication prescriptions.
@@ -312,11 +286,11 @@ class Loader():
 
         # checks if there is a transaction verb. If not: add one
         if "request" not in to_check:
-            res_type = utils.get(i="resource.resourceType",
-                                 s=to_check,
-                                 t="resource",
-                                 f="json")["value"][0]
-            res_id = utils.get(i="resource.id", s=to_check, t="resource", f="json")["value"][0]
+            res_type = self.utils.get(i="resource.resourceType",
+                                      s=to_check,
+                                      t="resource",
+                                      f="json")["value"][0]
+            res_id = self.utils.get(i="resource.id", s=to_check, t="resource", f="json")["value"][0]
             to_check["request"] = {
                 "method": "PUT",
                 "url": res_type + "/" + res_id
@@ -338,19 +312,18 @@ class Connector():
         self.fhirbase_destination = fhirbase_destination
         self.errorstatus = False
         self.verbose = verbose
+        self.utils = Utils()
 
         if incr:
             print("Matching encounter IDs for incremental upload ...")
-            fhir_search = self.fhirbase_destination + "Encounter"
+            fhir_search = self.fhirbase_destination + "Encounter?_summary=true"
             destination_encounters = self.get_encounters_list(fhir_search=fhir_search)
-            print(len(destination_encounters))
             self.enc_no_lst = []
             for item in enc_no_lst:
                 if item not in destination_encounters:
                     self.enc_no_lst.append(item)
-            print(len(self.enc_no_lst))
-            print(len(enc_no_lst))
-            print("Done.")
+            dif = len(enc_no_lst) - len(self.enc_no_lst)
+            print("Done. Skip " + str(dif) + " encounters.")
         else:
             self.enc_no_lst = enc_no_lst
 
@@ -409,12 +382,11 @@ class Connector():
             msg = "Upload Error. Status code: " + str(req.status_code)
             print(msg)
             self.writeLogmsg(msg)
-            utils = Utils()
             content = json.loads(req.content)
-            errormsg = utils.get(i="issue.0.details.text",
-                                 s=content,
-                                 t="resource",
-                                 f="json")["value"]
+            errormsg = self.utils.get(i="issue.0.details.text",
+                                      s=content,
+                                      t="resource",
+                                      f="json")["value"]
             self.writeLogmsg(errormsg)
 
     def writeLogmsg(self, msg):
@@ -423,29 +395,17 @@ class Connector():
             msg = current_time + " " + msg + "\n"
             f.writelines(msg)
 
-    def get_encounters_list(self, fhir_search=None, result=None):
-        if result is None:
-            result = []
-        utils = Utils()
-        req = requests.get(fhir_search)
-        bundle = str(req.content, encoding='cp1252')
-        json_data = json.loads(bundle)
-        encounters = utils.get(i="entry.X.resource.id", s=json_data, t="resource", f="json")
-        result.extend(encounters["value"].values)
+    def get_encounters_list(self, fhir_search=None):
+        resources = self.utils.link_search(fhir_search=fhir_search)
+        encounters = self.utils.get(i="X.id", s=resources, t="resource", f="json")
 
-        if "link" in json_data:
-            for link in json_data["link"]:
-                if link["relation"] == "next":
-                    url = link["url"]
-                    return self.get_encounters_list(fhir_search=url, result=result)
-
-        return result
+        return encounters["value"].values
 
 
 if __name__ == "__main__":
     logpath = r"log_test.txt"
-    fhirbase_source = r"http://10.50.8.14:8080/fhir/_/"  # set fhirbase of source server
-    fhirbase_destination = r"http://10.50.8.8:8083/"  # set fhirbase of destination server
+    fhirbase_source = r""  # set fhirbase of source server
+    fhirbase_destination = r""  # set fhirbase of destination server
     req_resources = ["Encounter", "Patient", "MedicationStatement", "Medication"]
     config_path = r"config.json"
     profile = "ID Logik"
@@ -453,7 +413,7 @@ if __name__ == "__main__":
     method = "POST"
 
     encounters = []
-    with open("encounters.csv", "r") as f:
+    with open("encounters.csv", "r") as f:  # a csv-file with encounter IDs. 1 encounter ID = 1 line
         csv_reader = csv.reader(f)
         _enc = [x[0] for x in csv_reader]
         for e in _enc:
@@ -463,9 +423,9 @@ if __name__ == "__main__":
     connector = Connector(fhirbase_source=fhirbase_source,
                           fhirbase_destination=fhirbase_destination,
                           enc_no_lst=encounters,
-                          incr=False,
+                          incr=True,
                           logpath=logpath)
-    # encounters = ["16626053"]
+
     connector.connect(req_resources,
                       config_path,
                       profile,
