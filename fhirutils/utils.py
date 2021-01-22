@@ -23,7 +23,7 @@ class Utils():
         args:
             i: item via json path, e.g.: "entry.0.resource.status"
             s: source, can be a url, a local file or a bundle
-            t: the source's type, "url" (default), "local" or "bundle"
+            t: the source's type, "url" (default), "local" or "resource"
             f: format of loaded resource/bundle, "json" (default) or "xml" (not yet implemented!)
 
         returns:
@@ -65,7 +65,7 @@ class Utils():
                 length = len(d)
                 if length == 1:
                     length = 2
-                for i in range(length-1):
+                for i in range(length):
                     if i < 0:
                         i = 0
                     keyerror = False
@@ -86,7 +86,6 @@ class Utils():
                         ret_lst.append([path_copy, sub_d])
 
                 df = pd.DataFrame(ret_lst)
-                print(ret_lst)
                 df.columns = ["path", "value"]
                 return df
 

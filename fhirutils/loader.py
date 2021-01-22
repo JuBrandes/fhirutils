@@ -175,10 +175,8 @@ class Loader():
 
     def createBundle(self, res_lst, form):
         bundle = None
-        identifier = "".join(
-            random.choice(string.ascii_uppercase + string.digits)
-            for _ in range(40)
-        )
+        identifier = "".join(random.choice(string.ascii_uppercase + string.digits)
+                             for _ in range(40))
         timestring = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime())
         timestring = "{0}:{1}".format(
                         timestring[:-2],
@@ -331,6 +329,8 @@ class Connector():
     def __init__(self,
                  fhirbase_source=None,
                  fhirbase_destination=None,
+                 enc_no_lst=None,
+                 incr=False,
                  logpath=None,
                  verbose=1):
         self.logpath = logpath
@@ -339,6 +339,21 @@ class Connector():
         self.errorstatus = False
         self.verbose = verbose
 
+        if incr:
+            print("Matching encounter IDs for incremental upload ...")
+            fhir_search = self.fhirbase_destination + "Encounter"
+            destination_encounters = self.get_encounters_list(fhir_search=fhir_search)
+            print(len(destination_encounters))
+            self.enc_no_lst = []
+            for item in enc_no_lst:
+                if item not in destination_encounters:
+                    self.enc_no_lst.append(item)
+            print(len(self.enc_no_lst))
+            print(len(enc_no_lst))
+            print("Done.")
+        else:
+            self.enc_no_lst = enc_no_lst
+
         self.loader = Loader(fhirbase=self.fhirbase_source, logpath=self.logpath)
 
         if self.logpath is not None:
@@ -346,13 +361,30 @@ class Connector():
                 pass
 
     def connect(self,
-                enc_no,
                 req_resources,
                 config_path,
                 profile,
                 method="PUT",
                 count=100,
                 form="json"):
+
+        for enc in self.enc_no_lst:
+            self.upload_record(enc,
+                               req_resources,
+                               config_path,
+                               profile,
+                               method=method,
+                               count=count,
+                               form=form)
+
+    def upload_record(self,
+                      enc_no,
+                      req_resources,
+                      config_path,
+                      profile,
+                      method="PUT",
+                      count=100,
+                      form="json"):
 
         bundle = self.loader.getRecord(enc_no,
                                        req_resources,
@@ -391,22 +423,34 @@ class Connector():
             msg = current_time + " " + msg + "\n"
             f.writelines(msg)
 
+    def get_encounters_list(self, fhir_search=None, result=None):
+        if result is None:
+            result = []
+        utils = Utils()
+        req = requests.get(fhir_search)
+        bundle = str(req.content, encoding='cp1252')
+        json_data = json.loads(bundle)
+        encounters = utils.get(i="entry.X.resource.id", s=json_data, t="resource", f="json")
+        result.extend(encounters["value"].values)
+
+        if "link" in json_data:
+            for link in json_data["link"]:
+                if link["relation"] == "next":
+                    url = link["url"]
+                    return self.get_encounters_list(fhir_search=url, result=result)
+
+        return result
 
 
 if __name__ == "__main__":
     logpath = r"log_test.txt"
-    fhirbase_source = r"" # set fhirbase of source server
-    fhirbase_destination = r""  # set fhirbase of destination server
+    fhirbase_source = r"http://10.50.8.14:8080/fhir/_/"  # set fhirbase of source server
+    fhirbase_destination = r"http://10.50.8.8:8083/"  # set fhirbase of destination server
     req_resources = ["Encounter", "Patient", "MedicationStatement", "Medication"]
     config_path = r"config.json"
     profile = "ID Logik"
     count = 10000
     method = "POST"
-
-    connector = Connector(fhirbase_source=fhirbase_source,
-                          fhirbase_destination=fhirbase_destination,
-                          logpath=logpath)
-    # encounters = ["16626053"]
 
     encounters = []
     with open("encounters.csv", "r") as f:
@@ -416,12 +460,14 @@ if __name__ == "__main__":
             if e not in encounters:
                 encounters.append(e)
 
-    print(encounters)
-    for enc in encounters:
-        enc_no = enc
-        connector.connect(enc_no,
-                          req_resources,
-                          config_path,
-                          profile,
-                          method,
-                          count)
+    connector = Connector(fhirbase_source=fhirbase_source,
+                          fhirbase_destination=fhirbase_destination,
+                          enc_no_lst=encounters,
+                          incr=False,
+                          logpath=logpath)
+    # encounters = ["16626053"]
+    connector.connect(req_resources,
+                      config_path,
+                      profile,
+                      method=method,
+                      count=count)
