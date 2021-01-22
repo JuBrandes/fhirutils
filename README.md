@@ -23,15 +23,30 @@ The features will constantly grow during development. New features will be descr
 For using the features you can either import the project into your namespace or you can use the py-files directly. The latter method is described below.
 
 ### Connect two FHIR servers to transfer bundles
-The Connector class can be used to download a patient's record according to his/her encounter id from FHIR server A. This record then is automatically uploaded to FHIR server B. To test the class do this:
+The Connector class can be used to download a patient's record according to his/her encounter id from FHIR server A. This record then is automatically uploaded to FHIR server B. The bundle will contain every desired resource type that is referenced by the given encounter ID. To test the class do this:
 - open fhirutils/loader.py
 - add resp. change the FHIR servers' urls (fhirbase_source, fhirbase_destination)
 - if you changed the source url make shure you added a valid encounter id that exists on FHIR server A
-- Maybe you have to add a profile in config.json to meet the resources' references between each other, but at first you can give it a try with the predefined "KDS" profile.
+- Maybe you have to add a profile in config.json to meet the resources' references between each other, but at first you can give it a try with the predefined "KDS" ("Kerndatensatz") profile.
 - run the script
 
+#### Parameters/Attributes
+##### Connector()
+- fhirbase_source: the source's FHIR-base, e.g.: "https://vonk.fire.ly/"
+- fhirbase_destination: the destination's FHIR-base
+- enc_no_lst: a list containing encounter IDs that are to be transferred
+- incr: if "True" -> encounters that are given with enc_no_lst but are already existing on destination server are omitted
+- logpath: a path + filename where the logfile is to be saved, e.g.: "/home/xyz/log.txt"
+
+##### Connector.connect()
+- req_resources: a list with the resources that are to be transferred, e.g.: ["Encounter, "Patient", "MedicationStatement", "Medication"]. Please note that "Medication" MUST be the last item, if it is to be included.
+- config_path: path to config.json
+- profile: the profile key in config.json that represents the references among the resources on the source FHIR server.
+- method: the http-request method that is to be used, "POST" or "PUT". If in doubt: Try "POST".
+- count: number of resources in one FHIR-search result. Not stable, will be obsolete soon. Preferably you don't touch it and use the default (100).
+
 ### Download a patient's record to a FHIR bundle
-The Loader class in fhirutils/loader.py provides a functionality of downloading a patient's record if the encounter id is known. This is the first step of Connector.
+The Loader class in fhirutils/loader.py provides a functionality of downloading a patient's record if the encounter id is known. Basically this is the first step of Connector.
 Open fhirutils/loader.py and scroll to the file's end. Here you can set the required parameters and call Loader. 
 
 
