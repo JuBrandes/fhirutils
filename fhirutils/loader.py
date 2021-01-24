@@ -1,8 +1,11 @@
 import requests
 import json
 import time
+import datetime
 from utils import Utils
 import csv
+from timeit import default_timer as timer
+import numpy as np
 
 
 class Loader():
@@ -341,7 +344,10 @@ class Connector():
                 count=100,
                 form="json"):
 
-        for enc in self.enc_no_lst:
+        time_lst = []
+
+        for i, enc in enumerate(self.enc_no_lst):
+            time_start = timer()
             self.upload_record(enc,
                                req_resources,
                                config_path,
@@ -349,6 +355,14 @@ class Connector():
                                method=method,
                                count=count,
                                form=form)
+            time_end = timer()
+            time_delta = time_end - time_start
+            time_lst.append(time_delta)
+            time_array = np.array(time_lst)
+            time_mean = np.mean(time_array)
+            eta = (len(self.enc_no_lst) - i) * time_mean
+            eta = str(datetime.timedelta(seconds=eta))
+            print("Estimated time: " + eta)
 
     def upload_record(self,
                       enc_no,
@@ -404,8 +418,8 @@ class Connector():
 
 if __name__ == "__main__":
     logpath = r"log_test.txt"
-    fhirbase_source = r""  # set fhirbase of source server
-    fhirbase_destination = r""  # set fhirbase of destination server
+    fhirbase_source = r"http://10.50.8.14:8080/fhir/_/"  # set fhirbase of source server
+    fhirbase_destination = r"http://10.50.8.8:8083/"  # set fhirbase of destination server
     req_resources = ["Encounter", "Patient", "MedicationStatement", "Medication"]
     config_path = r"config.json"
     profile = "ID Logik"
@@ -423,7 +437,7 @@ if __name__ == "__main__":
     connector = Connector(fhirbase_source=fhirbase_source,
                           fhirbase_destination=fhirbase_destination,
                           enc_no_lst=encounters,
-                          incr=True,
+                          incr=False,
                           logpath=logpath)
 
     connector.connect(req_resources,
